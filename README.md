@@ -24,7 +24,7 @@ sudo apt-get install -y flatbuffers-compiler
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/yourusername/agora-go-publish.git
+git clone https://github.com/BenWeekes/agora-go-publish.git
 cd agora-go-publish
 
 # 2. Generate Go code from FlatBuffers
