@@ -2,16 +2,15 @@ package main
 
 import (
 	"bufio"
-	"encoding/binary" // For length prefix
-	"flag"            // Added for command-line arguments
-
+	"encoding/binary"
+	"flag"
 	"fmt"
 	"io"
 	"log"
 	"os"
 	"sync"
 
-	ipcgen "ipc/ipcgen" // Assuming generated FlatBuffer code
+	"ipc/ipcgen"
 
 	agoraservice "github.com/AgoraIO-Extensions/Agora-Golang-Server-SDK/v2/go_sdk/agoraservice"
 	flatbuffers "github.com/google/flatbuffers/go"
@@ -19,10 +18,10 @@ import (
 
 var (
 	childLogger  *log.Logger
-	stdoutWriter *bufio.Writer // To allow observer to send messages
-	stdoutLock   sync.Mutex    // To protect writes to stdoutWriter from multiple goroutines (main + observer)
+	stdoutWriter *bufio.Writer
+	stdoutLock   sync.Mutex
 
-	// Global Agora SDK objects - to be properly managed
+	// Global Agora SDK objects
 	mediaFactory    *agoraservice.MediaNodeFactory
 	videoSender     *agoraservice.VideoFrameSender
 	audioSender     *agoraservice.AudioPcmDataSender
@@ -36,16 +35,13 @@ var (
 	initVideoCodec    agoraservice.VideoCodecType
 	initSampleRate    int32
 	initAudioChannels int32
-	initBitrate       int // Added for command-line bitrate
-	initMinBitrate    int // Added for command-line min bitrate
+	initBitrate       int
+	initMinBitrate    int
 
-	globalAppID   string // Stores AppID from InitCommand
-	globalChannel string // Stores ChannelName from InitCommand
-	globalUserID  string // Stores UserID from InitCommand
+	globalAppID   string
+	globalChannel string
+	globalUserID  string
 )
-
-// Callback implementations for RtcConnectionObserver
-// These are standalone functions now, not methods of a struct.
 
 func onConnected(conn *agoraservice.RtcConnection, conInfo *agoraservice.RtcConnectionInfo, reason int) {
 	logMsg := fmt.Sprintf("Agora SDK: Connected. UserID: %s, Channel: %s, Reason: %d", conInfo.LocalUserId, conInfo.ChannelId, reason)
@@ -66,7 +62,7 @@ func onDisconnected(conn *agoraservice.RtcConnection, conInfo *agoraservice.RtcC
 	childLogger.Println(logMsg)
 	sendAsyncLogResponse(ipcgen.LogLevelWarn, logMsg)
 	sendAsyncStatusResponse(ipcgen.ConnectionStatusDisconnected, logMsg, "")
-	cleanupLocalRtcResources(false) // Don't release the connection object itself, just tracks etc.
+	cleanupLocalRtcResources(false)
 }
 
 func onReconnecting(conn *agoraservice.RtcConnection, conInfo *agoraservice.RtcConnectionInfo, reason int) {
@@ -115,27 +111,22 @@ func onError(conn *agoraservice.RtcConnection, err int, msg string) {
 	logMsg := fmt.Sprintf("Agora SDK: Error. Code: %d, Message: %s", err, msg)
 	childLogger.Println("ERROR: " + logMsg)
 	sendAsyncLogResponse(ipcgen.LogLevelError, logMsg)
-	// This is a general SDK error. May not always map to a connection status.
-	// Sending a log is good. If it implies a critical state, could send a Failed status.
 }
 
 func onTokenPrivilegeWillExpire(conn *agoraservice.RtcConnection, token string) {
 	logMsg := "Agora SDK: Token privilege will expire soon. New token required."
 	childLogger.Println("WARN: " + logMsg)
 	sendAsyncLogResponse(ipcgen.LogLevelWarn, logMsg)
-	sendAsyncStatusResponse(ipcgen.ConnectionStatusTokenWillExpire, "Token privilege will expire.", token) // Send expiring token in details
+	sendAsyncStatusResponse(ipcgen.ConnectionStatusTokenWillExpire, "Token privilege will expire.", token)
 }
 
 func onTokenPrivilegeDidExpire(conn *agoraservice.RtcConnection) {
 	logMsg := "Agora SDK: Token privilege did expire."
 	childLogger.Println("WARN: " + logMsg)
 	sendAsyncLogResponse(ipcgen.LogLevelWarn, logMsg)
-	// Using Failed status as there's no specific "TokenDidExpire" in current FBS ConnectionStatus
 	sendAsyncStatusResponse(ipcgen.ConnectionStatusFailed, "Token privilege did expire.", "Token_Expired_Detail")
 }
 
-// cleanupLocalRtcResources is for cleaning up tracks or other resources tied to a connection
-// without releasing the rtcConnection object itself unless specified.
 func cleanupLocalRtcResources(releaseConnectionObject bool) {
 	childLogger.Println("Cleaning up local Agora RTC resources...")
 	if rtcConnection != nil {
@@ -171,11 +162,10 @@ func cleanupLocalRtcResources(releaseConnectionObject bool) {
 		audioSender = nil
 	}
 
-	// rtcConnection cleanup is handled after this block based on releaseConnectionObject
-	if rtcConnection != nil { // Added this check for safety before accessing rtcConnection
+	if rtcConnection != nil {
 		if releaseConnectionObject {
 			childLogger.Println("Disconnecting and Releasing RtcConnection object...")
-			rtcConnection.Disconnect() // Ensure Disconnect is called before Release
+			rtcConnection.Disconnect()
 			rtcConnection.Release()
 			rtcConnection = nil
 		} else {
@@ -189,7 +179,7 @@ func cleanupLocalRtcResources(releaseConnectionObject bool) {
 func main() {
 	childLogger = log.New(os.Stderr, "[agora_worker] ", log.LstdFlags|log.Lshortfile)
 	childLogger.Println("Agora child process started.")
-	stdoutWriter = bufio.NewWriter(os.Stdout) // Initialize stdoutWriter as *bufio.Writer
+	stdoutWriter = bufio.NewWriter(os.Stdout)
 
 	// Define command-line flags
 	appIDFlag := flag.String("appID", "", "Agora App ID")
@@ -204,14 +194,13 @@ func main() {
 	audioChannelsFlag := flag.Int("audioChannels", 1, "Audio channels")
 	bitrateFlag := flag.Int("bitrate", 1000, "Video target bitrate in Kbps")
 	minBitrateFlag := flag.Int("minBitrate", 100, "Video minimum bitrate in Kbps")
-	// To-Do: Add log level flag if needed: logLevelFlag := flag.String("logLevel", "info", "Logging level")
 
-	flag.Parse() // Parse the flags
+	flag.Parse()
 
 	globalAppID = *appIDFlag
 	globalChannel = *channelNameFlag
 	globalUserID = *userIDFlag
-	childProcessToken := *tokenFlag // Store token locally for connect
+	childProcessToken := *tokenFlag
 	initWidth = int32(*widthFlag)
 	initHeight = int32(*heightFlag)
 	initFrameRate = int32(*frameRateFlag)
@@ -226,9 +215,9 @@ func main() {
 	serviceCfg := agoraservice.NewAgoraServiceConfig()
 	serviceCfg.EnableAudioProcessor = true
 	serviceCfg.EnableVideo = true
-	serviceCfg.AppId = globalAppID // Use AppID from flags for SDK initialization
+	serviceCfg.AppId = globalAppID
 	serviceCfg.LogPath = "./agora_child_sdk.log"
-	serviceCfg.LogSize = 5 * 1024 * 1024 // 5 MB
+	serviceCfg.LogSize = 5 * 1024 * 1024
 
 	if ret := agoraservice.Initialize(serviceCfg); ret != 0 {
 		errMsg := fmt.Sprintf("Agora SDK global Initialize() failed with code: %d", ret)
@@ -246,7 +235,6 @@ func main() {
 		os.Exit(1)
 	}
 	childLogger.Println("MediaNodeFactory created.")
-	// defer mediaFactory.Release() // Typically released with service
 
 	// Determine video codec type from flags
 	switch *videoCodecFlag {
@@ -262,8 +250,8 @@ func main() {
 	connCfg := &agoraservice.RtcConnectionConfig{
 		AutoSubscribeAudio: false,
 		AutoSubscribeVideo: false,
-		ClientRole:         agoraservice.ClientRoleBroadcaster,          // Set if needed
-		ChannelProfile:     agoraservice.ChannelProfileLiveBroadcasting, // Set if needed
+		ClientRole:         agoraservice.ClientRoleBroadcaster,
+		ChannelProfile:     agoraservice.ChannelProfileLiveBroadcasting,
 	}
 
 	rtcConnection = agoraservice.NewRtcConnection(connCfg)
@@ -271,35 +259,36 @@ func main() {
 		errMsg := "Failed to create Agora RtcConnection instance."
 		childLogger.Println("ERROR: " + errMsg)
 		sendErrorResponse(ipcgen.ConnectionStatusInitializedFailure, errMsg, "NewRtcConnectionFailed")
-		os.Exit(1) // Exit as we can't proceed
+		os.Exit(1)
 	}
 
+	// Fixed: Use correct function names (not appOnConnected, etc.)
 	observer := &agoraservice.RtcConnectionObserver{
-		OnConnected:    appOnConnected,
-		OnDisconnected: appOnDisconnected,
+		OnConnected:    onConnected,
+		OnDisconnected: onDisconnected,
 		OnConnecting: func(conn *agoraservice.RtcConnection, conInfo *agoraservice.RtcConnectionInfo, reason int) {
 			logMsg := fmt.Sprintf("Agora SDK: Connecting... UserID: %s, Channel: %s, Reason: %d", conInfo.LocalUserId, conInfo.ChannelId, reason)
 			childLogger.Println(logMsg)
 			sendAsyncLogResponse(ipcgen.LogLevelInfo, "Connecting...")
-			// sendAsyncStatusResponse(ipcgen.ConnectionStatusReconnecting, "Connecting...", fmt.Sprintf("Reason: %d", reason)) // This status is more for reconnecting
 		},
-		OnReconnecting:             appOnReconnecting,
-		OnReconnected:              appOnReconnected,
-		OnConnectionLost:           appOnConnectionLost,
-		OnConnectionFailure:        appOnConnectionFailure,
-		OnTokenPrivilegeWillExpire: appOnTokenPrivilegeWillExpire,
-		OnTokenPrivilegeDidExpire:  appOnTokenPrivilegeDidExpire,
-		OnUserJoined:               appOnUserJoined,
-		OnUserLeft:                 appOnUserLeft,
-		OnError:                    appOnError,
+		OnReconnecting:             onReconnecting,
+		OnReconnected:              onReconnected,
+		OnConnectionLost:           onConnectionLost,
+		OnConnectionFailure:        onConnectionFailure,
+		OnTokenPrivilegeWillExpire: onTokenPrivilegeWillExpire,
+		OnTokenPrivilegeDidExpire:  onTokenPrivilegeDidExpire,
+		OnUserJoined:               onUserJoined,
+		OnUserLeft:                 onUserLeft,
+		OnError:                    onError,
 	}
+	
 	if ret := rtcConnection.RegisterObserver(observer); ret != 0 {
 		errMsg := fmt.Sprintf("Failed to register RtcConnectionObserver, error code: %d", ret)
 		childLogger.Println("ERROR: " + errMsg)
 		sendErrorResponse(ipcgen.ConnectionStatusInitializedFailure, errMsg, "RegisterObserverFailed")
-		rtcConnection.Release() // Clean up connection object
+		rtcConnection.Release()
 		rtcConnection = nil
-		os.Exit(1) // Exit as we can't proceed
+		os.Exit(1)
 	}
 	childLogger.Println("Agora RtcConnection created and observer registered.")
 
@@ -311,16 +300,15 @@ func main() {
 		rtcConnection.Release()
 		rtcConnection = nil
 		sendErrorResponse(ipcgen.ConnectionStatusInitializedFailure, errMsg, "ConnectFailed")
-		os.Exit(1) // Exit as we can't proceed
+		os.Exit(1)
 	}
 	childLogger.Printf("Agora RtcConnection.Connect() called for channel '%s', user '%s'. Waiting for connection callbacks.", globalChannel, globalUserID)
-	// Send an initial status to parent indicating connection attempt has started.
 	sendStatusResponse(ipcgen.ConnectionStatusInitializedSuccess, "Connect call issued, awaiting callback.", "")
 
 	reader := bufio.NewReader(os.Stdin)
 
 	for {
-		// 1. Read 4-byte length prefix
+		// Read 4-byte length prefix
 		lenBytes := make([]byte, 4)
 		if _, err := io.ReadFull(reader, lenBytes); err != nil {
 			if err == io.EOF {
@@ -337,47 +325,35 @@ func main() {
 			continue
 		}
 
-		// 2. Read the message payload
+		// Read the message payload
 		msgBuf := make([]byte, msgLen)
 		if _, err := io.ReadFull(reader, msgBuf); err != nil {
 			childLogger.Printf("Error reading message payload (len %d) from stdin: %v. Exiting.", msgLen, err)
-			// Maybe send a failure response if the pipe is still writable?
 			return
 		}
 
-		// 3. Parse FlatBuffer message
+		// Parse FlatBuffer message
 		ipcMsg := ipcgen.GetRootAsIPCMessage(msgBuf, 0)
 		payloadTable := new(flatbuffers.Table)
 		if !ipcMsg.Payload(payloadTable) && ipcMsg.MessageType() != ipcgen.MessageTypeCLOSE_COMMAND {
-			// CLOSE_COMMAND might not have a payload, so allow it to proceed.
 			childLogger.Printf("Failed to get payload table for message type: %s", ipcgen.EnumNamesMessageType[ipcMsg.MessageType()])
 			sendErrorResponse(ipcgen.ConnectionStatusFailed, "Failed to get payload table from IPCMessage", "")
 			continue
 		}
 
-		// childLogger.Printf("Received command: %s", ipcgen.EnumNamesMessageType[ipcMsg.MessageType()])
-
 		switch ipcMsg.MessageType() {
-		// Removed MessageTypeINIT_COMMAND case
-		// Connection is now handled at startup
-
 		case ipcgen.MessageTypeWRITE_VIDEO_SAMPLE_COMMAND:
-			if rtcConnection == nil || videoSender == nil { // Check rtcConnection not connection (old var)
+			if rtcConnection == nil || videoSender == nil {
 				childLogger.Println("WARN: Video sample received but Agora rtcConnection/video sender not ready. Dropping.")
 				continue
 			}
 			samplePayload := new(ipcgen.MediaSamplePayload)
 			samplePayload.Init(payloadTable.Bytes, payloadTable.Pos)
 			if samplePayload.DataLength() == 0 {
-				// childLogger.Println("WARN: Received empty video sample data.")
 				continue
 			}
-			frameData := samplePayload.DataBytes() // This is a zero-copy read from the buffer
-			// Agora expects timestamp in milliseconds for ExternalVideoFrame.
-			// samplePayload.TimestampUnixNano() is in nanoseconds.
-			// timestampMs := samplePayload.TimestampUnixNano() / 1e6
+			frameData := samplePayload.DataBytes()
 
-			// Use initWidth, initHeight, initAudioChannels, initSampleRate which are now set from flags
 			extFrame := &agoraservice.ExternalVideoFrame{
 				Type:      agoraservice.VideoBufferRawData,
 				Format:    agoraservice.VideoPixelI420,
@@ -391,8 +367,7 @@ func main() {
 			}
 
 		case ipcgen.MessageTypeWRITE_AUDIO_SAMPLE_COMMAND:
-			if rtcConnection == nil || audioSender == nil { // Check rtcConnection not connection (old var)
-				// childLogger.Println("WARN: Audio sample received but Agora rtcConnection/audio sender not ready. Dropping.")
+			if rtcConnection == nil || audioSender == nil {
 				continue
 			}
 			samplePayload := new(ipcgen.MediaSamplePayload)
@@ -402,12 +377,10 @@ func main() {
 				continue
 			}
 			frameData := samplePayload.DataBytes()
-			// timestampMs := samplePayload.TimestampUnixNano() / 1e6
 
-			// Assuming PCM16 based on parent's current settings
 			bytesPerSample := 2 // For PCM16
 			if initAudioChannels == 0 {
-				childLogger.Println("ERROR: initAudioChannels (from CLI flags) is 0, cannot calculate samplesPerChannel for audio frame.")
+				childLogger.Println("ERROR: initAudioChannels is 0, cannot calculate samplesPerChannel for audio frame.")
 				continue
 			}
 			samplesPerChannel := len(frameData) / (int(initAudioChannels) * bytesPerSample)
@@ -431,7 +404,7 @@ func main() {
 			sendAsyncLogResponse(ipcgen.LogLevelInfo, "Child process shutting down.")
 			sendAsyncStatusResponse(ipcgen.ConnectionStatusDisconnected, "", "Closed by parent command")
 			childLogger.Println("Child process terminated by close command.")
-			return // Exit main loop, defer agoraservice.Release() will run.
+			return
 
 		default:
 			errMsg := fmt.Sprintf("Unknown command type received: %s", ipcgen.EnumNamesMessageType[ipcMsg.MessageType()])
@@ -464,7 +437,6 @@ func setupMediaInfrastructureAndPublish(conn *agoraservice.RtcConnection) error 
 	childLogger.Println("Creating VideoFrameSender...")
 	videoSender = mediaFactory.NewVideoFrameSender()
 	if videoSender == nil {
-		// Clean up audioSender if videoSender creation fails
 		audioSender.Release()
 		audioSender = nil
 		return fmt.Errorf("failed to create VideoFrameSender")
@@ -498,19 +470,19 @@ func setupMediaInfrastructureAndPublish(conn *agoraservice.RtcConnection) error 
 
 	// Configure Video Track
 	videoEncoderConfig := &agoraservice.VideoEncoderConfiguration{
-		CodecType:         agoraservice.VideoCodecTypeH264, // From command-line flags
-		Width:             int(initWidth),                  // From command-line flags
-		Height:            int(initHeight),                 // From command-line flags
-		Framerate:         int(initFrameRate),              // From command-line flags
-		Bitrate:           initBitrate,                     // From command-line flags (Kbps, wrapper converts to bps)
-		MinBitrate:        initMinBitrate,                  // From command-line flags (Kbps, wrapper converts to bps)
+		CodecType:         agoraservice.VideoCodecTypeH264,
+		Width:             int(initWidth),
+		Height:            int(initHeight),
+		Framerate:         int(initFrameRate),
+		Bitrate:           initBitrate,
+		MinBitrate:        initMinBitrate,
 		OrientationMode:   agoraservice.OrientationModeAdaptive,
-		DegradePreference: agoraservice.DegradeMaintainBalanced, // Changed to MaintainBalanced as requested
+		DegradePreference: agoraservice.DegradeMaintainBalanced,
 	}
 	childLogger.Printf("Setting video encoder configuration: %+v", videoEncoderConfig)
 	if ret := localVideoTrack.SetVideoEncoderConfiguration(videoEncoderConfig); ret != 0 {
 		errMsg := fmt.Sprintf("failed to set video encoder configuration, error code: %d", ret)
-		cleanupLocalRtcResources(false) // Clean up created tracks/senders
+		cleanupLocalRtcResources(false)
 		return fmt.Errorf(errMsg)
 	}
 	childLogger.Println("Video encoder configuration set.")
@@ -525,7 +497,7 @@ func setupMediaInfrastructureAndPublish(conn *agoraservice.RtcConnection) error 
 	childLogger.Println("Publishing local audio track...")
 	if ret := localUser.PublishAudio(localAudioTrack); ret != 0 {
 		errMsg := fmt.Sprintf("failed to publish audio track, error code: %d", ret)
-		cleanupLocalRtcResources(false) // Clean up
+		cleanupLocalRtcResources(false)
 		return fmt.Errorf(errMsg)
 	}
 	childLogger.Println("Local audio track published.")
@@ -533,9 +505,8 @@ func setupMediaInfrastructureAndPublish(conn *agoraservice.RtcConnection) error 
 	childLogger.Println("Publishing local video track...")
 	if ret := localUser.PublishVideo(localVideoTrack); ret != 0 {
 		errMsg := fmt.Sprintf("failed to publish video track, error code: %d", ret)
-		// Unpublish audio if video fails, then cleanup
 		localUser.UnpublishAudio(localAudioTrack)
-		cleanupLocalRtcResources(false) // Clean up
+		cleanupLocalRtcResources(false)
 		return fmt.Errorf(errMsg)
 	}
 	childLogger.Println("Local video track published.")
@@ -546,10 +517,7 @@ func setupMediaInfrastructureAndPublish(conn *agoraservice.RtcConnection) error 
 
 func cleanupAgoraResources() {
 	childLogger.Println("Cleaning up ALL Agora resources due to CLOSE command or fatal error...")
-	cleanupLocalRtcResources(true) // True to release the connection object fully
-
-	// Global SDK release is handled by defer agoraservice.Release() in main()
-	// No need to call agoraservice.Release() here directly.
+	cleanupLocalRtcResources(true)
 	childLogger.Println("Full Agora resources cleanup attempt finished.")
 }
 
@@ -575,14 +543,16 @@ func sendAsyncStatusResponse(status ipcgen.ConnectionStatus, message string, det
 	builder.Finish(msg)
 
 	buf := builder.FinishedBytes()
-	sendFramedMessage(stdoutWriter, buf)         // stdoutWriter is *bufio.Writer
-	if err := stdoutWriter.Flush(); err != nil { // Flush on *bufio.Writer
+	sendFramedMessage(stdoutWriter, buf)
+	if err := stdoutWriter.Flush(); err != nil {
 		childLogger.Printf("ERROR flushing stdout after status response: %v", err)
 	}
 }
+
 func sendAsyncErrorResponse(statusForError ipcgen.ConnectionStatus, errMsgStr string, errorDetails string) {
 	sendAsyncStatusResponse(statusForError, errMsgStr, errorDetails)
 }
+
 func sendAsyncLogResponse(level ipcgen.LogLevel, messageStr string) {
 	stdoutLock.Lock()
 	defer stdoutLock.Unlock()
@@ -603,50 +573,20 @@ func sendAsyncLogResponse(level ipcgen.LogLevel, messageStr string) {
 	builder.Finish(msg)
 
 	buf := builder.FinishedBytes()
-	sendFramedMessage(stdoutWriter, buf)         // stdoutWriter is *bufio.Writer
-	if err := stdoutWriter.Flush(); err != nil { // Flush on *bufio.Writer
+	sendFramedMessage(stdoutWriter, buf)
+	if err := stdoutWriter.Flush(); err != nil {
 		childLogger.Printf("ERROR flushing stdout after log response: %v", err)
 	}
 }
 
-// sendResponse writes to the provided writer (now global stdoutWriter via helpers)
-func sendResponse(writer io.Writer, msgType ipcgen.MessageType, payloadType ipcgen.MessagePayload, payloadOffset flatbuffers.UOffsetT) {
-	builder := flatbuffers.NewBuilder(256)
-	ipcgen.IPCMessageStart(builder)
-	ipcgen.IPCMessageAddMessageType(builder, msgType)
-	if payloadOffset != 0 {
-		ipcgen.IPCMessageAddPayloadType(builder, payloadType)
-		ipcgen.IPCMessageAddPayload(builder, payloadOffset)
-	}
-	ipcMessage := ipcgen.IPCMessageEnd(builder)
-	builder.Finish(ipcMessage)
-	msgBytes := builder.FinishedBytes()
-
-	lenBytes := make([]byte, 4)
-	binary.BigEndian.PutUint32(lenBytes, uint32(len(msgBytes)))
-
-	if _, err := writer.Write(lenBytes); err != nil {
-		childLogger.Printf("Failed to write message length to writer: %v", err)
-		return
-	}
-	if _, err := writer.Write(msgBytes); err != nil {
-		childLogger.Printf("Failed to write message payload to writer: %v", err)
-	}
-}
-
-// sendStatusResponse and sendErrorResponse now use the async helpers if called from main, or could be direct if context is clear.
-// For simplicity, current direct callers in main loop will use these, which now call sendAsyncResponse -> sendResponse.
 func sendStatusResponse(status ipcgen.ConnectionStatus, errMsgStr string, addInfoStr string) {
-	// This writer argument is now shadowed by the global stdoutWriter used in sendAsyncStatusResponse.
-	// To be correct, these should also use the async path or be refactored if direct write is from main loop only.
 	sendAsyncStatusResponse(status, errMsgStr, addInfoStr)
 }
+
 func sendErrorResponse(statusForError ipcgen.ConnectionStatus, errorMessage string, errorDetails string) {
 	sendAsyncStatusResponse(statusForError, errorMessage, errorDetails)
 }
 
-// sendFramedMessage writes the message length and then the message to the writer.
-// Changed writer to *bufio.Writer to make Flushable contract clear for internal use.
 func sendFramedMessage(writer *bufio.Writer, msg []byte) {
 	lenBytes := make([]byte, 4)
 	binary.BigEndian.PutUint32(lenBytes, uint32(len(msg)))
@@ -658,6 +598,4 @@ func sendFramedMessage(writer *bufio.Writer, msg []byte) {
 	if _, err := writer.Write(msg); err != nil {
 		childLogger.Printf("Failed to write message payload to writer: %v", err)
 	}
-	// Flushing is handled by the calling async functions, as they manage the lock
-	// and batching logic if any (though currently they flush immediately).
 }

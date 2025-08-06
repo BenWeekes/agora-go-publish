@@ -14,7 +14,7 @@ import (
 	"syscall"
 	"time"
 
-	"agora-go-publish/ipc/ipcgen"
+	"ipc/ipcgen"
 	flatbuffers "github.com/google/flatbuffers/go"
 )
 
