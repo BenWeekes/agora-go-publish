@@ -192,7 +192,7 @@ func main() {
 	videoCodecFlag := flag.String("videoCodec", "H264", "Video codec (H264 or VP8)")
 	sampleRateFlag := flag.Int("sampleRate", 48000, "Audio sample rate")
 	audioChannelsFlag := flag.Int("audioChannels", 1, "Audio channels")
-	bitrateFlag := flag.Int("bitrate", 1000, "Video target bitrate in Kbps")
+	bitrateFlag := flag.Int("bitrate", 1500, "Video target bitrate in Kbps")
 	minBitrateFlag := flag.Int("minBitrate", 100, "Video minimum bitrate in Kbps")
 
 	flag.Parse()

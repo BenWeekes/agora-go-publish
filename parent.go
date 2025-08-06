@@ -507,7 +507,7 @@ func main() {
 	// Parse command-line flags
 	flag.StringVar(&opts.AppID, "appID", "", "Agora App ID (required)")
 	flag.StringVar(&opts.ChannelName, "channelName", "test-channel", "Agora Channel Name")
-	flag.StringVar(&opts.UserID, "userID", "test-user", "Agora User ID")
+	flag.StringVar(&opts.UserID, "userID", "100", "Agora User ID")
 	flag.StringVar(&opts.Token, "token", "", "Agora Token (optional)")
 	flag.StringVar(&opts.AudioFile, "audioFile", "test_data/send_audio_16k_1ch.pcm", "Audio file path (PCM format)")
 	flag.StringVar(&opts.VideoFile, "videoFile", "test_data/send_video_cif.yuv", "Video file path (YUV420 format)")
