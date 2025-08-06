@@ -1,0 +1,34 @@
+# Binaries
+child
+parent
+*.exe
+
+# Go build cache
+*.o
+*.a
+*.so
+
+# Go modules
+go.sum
+
+# Generated FlatBuffers code
+ipc/ipcgen/
+
+# Logs
+*.log
+agora_child_sdk.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Debug files
+debug.log
+*.pprof

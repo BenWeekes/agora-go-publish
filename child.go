@@ -11,7 +11,7 @@ import (
 	"os"
 	"sync"
 
-	ipcgen "aquarius/webrtc-media/internal/ipc_defs/IPCDefs" // Assuming generated FlatBuffer code
+	ipcgen "ipc/ipcgen" // Assuming generated FlatBuffer code
 
 	agoraservice "github.com/AgoraIO-Extensions/Agora-Golang-Server-SDK/v2/go_sdk/agoraservice"
 	flatbuffers "github.com/google/flatbuffers/go"
